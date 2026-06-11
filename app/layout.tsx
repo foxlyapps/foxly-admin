@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Foxly Admin",
-  description: "Foxly administration dashboard.",
+  description: "Internal admin panel for the Foxly Shopify app.",
 };
 
 export default function RootLayout({

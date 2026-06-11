@@ -13,7 +13,7 @@ export default async function AnalyticsPage() {
     <div className="mx-auto max-w-7xl">
       <PageHeader
         title="Analytics"
-        description="Revenue, orders, and feature-usage insights across all stores."
+        description="App installs, active shops, churn, and merchant commerce insights."
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Analytics" },

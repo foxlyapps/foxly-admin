@@ -1,7 +1,8 @@
 # Foxly Admin
 
-A professional, schema-driven administration dashboard for the Foxly commerce
-platform. Built with **Next.js 16 (App Router)**, **Drizzle ORM + PostgreSQL**,
+The **internal admin panel for the Foxly Shopify app**, used by staff to monitor
+app health (installs, active shops, churn) and manage every record powering the
+app. Built with **Next.js 16 (App Router)**, **Drizzle ORM + PostgreSQL**,
 **Zustand** for client state, and **Zod** for validation.
 
 ---
@@ -152,8 +153,8 @@ System columns (`id`, `createdAt`, `updatedAt`, primary keys) are read-only.
 
 ## Analytics
 
-A feature-rich analytics page at **`/dashboard/analytics`**, built entirely on
-the `order_logs` table.
+A feature-rich analytics page at **`/dashboard/analytics`**, organized into two
+sections: **App health** (the Shopify-app view) and **Merchant commerce**.
 
 ### Date-range filtering
 
@@ -170,6 +171,18 @@ KPI deltas compare against the **immediately-preceding equal-length period**.
 
 ### What it shows
 
+**App health** (from the `shops` table — `installed_at` / `uninstalled_at`):
+
+| Metric                 | Detail                                                       |
+| ---------------------- | ------------------------------------------------------------ |
+| New installs           | Installs in the window, % vs previous period.                |
+| Uninstalls             | Uninstalls in the window (lower is better).                  |
+| Active shops           | Currently-installed shops.                                   |
+| Churn rate             | Uninstalls / shops active at window start.                   |
+| Installs vs uninstalls | Diverging bar chart over time + net change + engaged shops.  |
+
+**Merchant commerce** (from `order_logs`):
+
 | Section                    | Detail                                                                 |
 | -------------------------- | ---------------------------------------------------------------------- |
 | KPI cards                  | Revenue, Orders, Avg. Order Value, Customers — each with % vs previous. |
@@ -180,6 +193,9 @@ KPI deltas compare against the **immediately-preceding equal-length period**.
 | Top shops by revenue       | Ranked bar list.                                                       |
 | Top products               | Ranked bar list.                                                       |
 | Top locations (cities)     | Ranked bar list.                                                       |
+
+The dashboard overview (`/dashboard`) also surfaces a 4-card app-health band
+(active shops, 30-day installs, uninstalls/churn, orders).
 
 ### Feature usage & insights
 

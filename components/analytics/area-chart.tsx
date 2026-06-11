@@ -158,10 +158,14 @@ function formatBucket(iso: string, bucket: string): string {
   const d = new Date(iso.replace(" ", "T"));
   if (isNaN(d.getTime())) return iso;
   if (bucket === "hour")
-    return d.toLocaleTimeString(undefined, { hour: "numeric" });
+    return d.toLocaleTimeString("en-US", { hour: "numeric", timeZone: "UTC" });
   if (bucket === "month")
-    return d.toLocaleDateString(undefined, { month: "short" });
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 function formatCurrencyShort(v: number, currency: string): string {

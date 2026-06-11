@@ -65,10 +65,40 @@ export interface FeatureInsights {
   };
 }
 
+export interface AppMetrics {
+  /** New installs within the selected window. */
+  installs: number;
+  /** Uninstalls within the selected window. */
+  uninstalls: number;
+  /** Net change (installs - uninstalls) in the window. */
+  netInstalls: number;
+  /** Total shops that have ever installed (all-time). */
+  totalShops: number;
+  /** Currently-active shops (installed, not uninstalled). */
+  activeShops: number;
+  /** Churn rate over the window: uninstalls / active-at-start (%). */
+  churnRate: number;
+  /** Active shops that have produced at least one order (all-time). */
+  engagedShops: number;
+  deltas: {
+    installs: number | null;
+    uninstalls: number | null;
+    activeShops: number | null;
+  };
+}
+
+export interface AppTimePoint {
+  bucket: string;
+  installs: number;
+  uninstalls: number;
+}
+
 export interface AnalyticsData {
   preset: RangePreset;
   range: { from: string; to: string };
   currency: string;
+  app: AppMetrics;
+  appSeries: AppTimePoint[];
   kpi: Kpi;
   series: TimePoint[];
   byStatus: Breakdown[];
@@ -110,6 +140,87 @@ function pctDelta(current: number, previous: number): number | null {
   return ((current - previous) / previous) * 100;
 }
 
+/** App-level install/uninstall aggregates for a [from, to) window. */
+async function appWindow(from: string, to: string) {
+  const result = await db.execute<{
+    installs: number;
+    uninstalls: number;
+    total_shops: number;
+    active_shops: number;
+    active_at_start: number;
+    engaged_shops: number;
+  }>(sql`
+    select
+      count(*) filter (where installed_at >= ${from} and installed_at < ${to})::int as installs,
+      count(*) filter (where uninstalled_at >= ${from} and uninstalled_at < ${to})::int as uninstalls,
+      count(*)::int as total_shops,
+      count(*) filter (where uninstalled_at is null)::int as active_shops,
+      count(*) filter (
+        where installed_at < ${from}
+        and (uninstalled_at is null or uninstalled_at >= ${from})
+      )::int as active_at_start,
+      count(*) filter (
+        where uninstalled_at is null
+        and shop_domain in (select distinct shop_domain from order_logs)
+      )::int as engaged_shops
+    from shops
+  `);
+  const r = result.rows[0] ?? {
+    installs: 0,
+    uninstalls: 0,
+    total_shops: 0,
+    active_shops: 0,
+    active_at_start: 0,
+    engaged_shops: 0,
+  };
+  return {
+    installs: r.installs,
+    uninstalls: r.uninstalls,
+    totalShops: r.total_shops,
+    activeShops: r.active_shops,
+    activeAtStart: r.active_at_start,
+    engagedShops: r.engaged_shops,
+  };
+}
+
+/** Bucketed installs + uninstalls time series. */
+async function appTimeSeries(
+  from: string,
+  to: string,
+  bucket: DateRange["bucket"],
+): Promise<AppTimePoint[]> {
+  const result = await db.execute<{
+    bucket: string;
+    installs: number;
+    uninstalls: number;
+  }>(sql`
+    with buckets as (
+      select generate_series(
+        date_trunc(${bucket}, ${from}::timestamptz),
+        date_trunc(${bucket}, (${to}::timestamptz - interval '1 microsecond')),
+        ('1 ' || ${bucket})::interval
+      ) as bucket
+    )
+    select
+      b.bucket::text as bucket,
+      coalesce(i.n, 0)::int as installs,
+      coalesce(u.n, 0)::int as uninstalls
+    from buckets b
+    left join (
+      select date_trunc(${bucket}, installed_at) as b, count(*)::int n
+      from shops where installed_at >= ${from} and installed_at < ${to}
+      group by 1
+    ) i on i.b = b.bucket
+    left join (
+      select date_trunc(${bucket}, uninstalled_at) as b, count(*)::int n
+      from shops where uninstalled_at >= ${from} and uninstalled_at < ${to}
+      group by 1
+    ) u on u.b = b.bucket
+    order by b.bucket
+  `);
+  return result.rows;
+}
+
 /** Build the full analytics payload for the requested preset. */
 export async function getAnalytics(preset: RangePreset): Promise<AnalyticsData> {
   await verifySession();
@@ -119,10 +230,13 @@ export async function getAnalytics(preset: RangePreset): Promise<AnalyticsData> 
   const from = range.from.toISOString();
   const to = range.to.toISOString();
 
-  const [cur, previous, series, byStatus, byPayment, topShops, topCities, topProducts, features, currencyRow] =
+  const [cur, previous, app, prevApp, appSeries, series, byStatus, byPayment, topShops, topCities, topProducts, features, currencyRow] =
     await Promise.all([
       totals(range.from, range.to),
       totals(prev.from, prev.to),
+      appWindow(from, to),
+      appWindow(prev.from.toISOString(), prev.to.toISOString()),
+      appTimeSeries(from, to, range.bucket),
       timeSeries(from, to, range.bucket),
       breakdown(from, to, "status"),
       breakdown(from, to, "payment_method"),
@@ -137,11 +251,29 @@ export async function getAnalytics(preset: RangePreset): Promise<AnalyticsData> 
       `),
     ]);
 
+  const churnRate =
+    app.activeAtStart > 0 ? (app.uninstalls / app.activeAtStart) * 100 : 0;
+
   return {
     preset,
     range: { from, to },
     currency: currencyRow.rows[0]?.currency ?? "USD",
     bucket: range.bucket,
+    app: {
+      installs: app.installs,
+      uninstalls: app.uninstalls,
+      netInstalls: app.installs - app.uninstalls,
+      totalShops: app.totalShops,
+      activeShops: app.activeShops,
+      churnRate,
+      engagedShops: app.engagedShops,
+      deltas: {
+        installs: pctDelta(app.installs, prevApp.installs),
+        uninstalls: pctDelta(app.uninstalls, prevApp.uninstalls),
+        activeShops: pctDelta(app.activeShops, prevApp.activeShops),
+      },
+    },
+    appSeries,
     kpi: {
       revenue: cur.revenue,
       orders: cur.orders,

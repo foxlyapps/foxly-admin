@@ -35,11 +35,11 @@ export default function LoginPage() {
 
           <div className="max-w-md">
             <h1 className="text-4xl font-semibold leading-tight tracking-tight">
-              The control center for your commerce stack.
+              Internal control panel for the Foxly Shopify app.
             </h1>
             <p className="mt-4 text-base leading-relaxed text-sidebar-muted">
-              Manage shops, customers, offers, integrations and more from one
-              refined, secure dashboard.
+              Monitor installs, active shops and merchant activity, and manage
+              every record powering the app from one secure place.
             </p>
           </div>
 
@@ -66,7 +66,7 @@ export default function LoginPage() {
               Welcome back
             </h2>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Sign in to your administrator account to continue.
+              Sign in with your internal staff account to continue.
             </p>
           </div>
 
