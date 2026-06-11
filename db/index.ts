@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 import * as relations from "./relations";
+import * as admin from "./admin";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -24,6 +25,6 @@ if (process.env.NODE_ENV !== "production") {
   globalForDb.pool = pool;
 }
 
-export const db = drizzle(pool, { schema: { ...schema, ...relations } });
+export const db = drizzle(pool, { schema: { ...schema, ...relations, ...admin } });
 
-export { schema, relations };
+export { schema, relations, admin };

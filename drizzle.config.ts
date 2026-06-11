@@ -6,7 +6,7 @@ import { defineConfig } from "drizzle-kit";
 // If a drizzle-kit command hangs, run it against the 5432 session port, e.g.:
 //   DATABASE_URL='postgresql://...@...pooler.supabase.com:5432/postgres' bun run db:pull
 export default defineConfig({
-  schema: "./db/schema.ts",
+  schema: ["./db/schema.ts", "./db/admin.ts"],
   out: "./db/migrations",
   dialect: "postgresql",
   dbCredentials: {

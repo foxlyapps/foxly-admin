@@ -8,6 +8,13 @@
       "when": 1781165446030,
       "tag": "0000_round_sally_floyd",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781166843863,
+      "tag": "0001_sturdy_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }
