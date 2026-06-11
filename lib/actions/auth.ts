@@ -8,6 +8,16 @@ import { adminUsers } from "@/db/admin";
 import { createSession, deleteSession } from "@/lib/session";
 import { LoginSchema, type LoginState } from "@/lib/validations/auth";
 
+/**
+ * Dummy bcrypt hash used purely as a timing-attack mitigation: when the email
+ * doesn't exist we still run bcrypt.compare so the response time matches the
+ * "user found, wrong password" path. It never matches any password.
+ * Cost factor (12) must match the cost used when hashing real passwords
+ * (see lib/resources/actions.ts).
+ */
+const TIMING_SAFE_DUMMY_HASH =
+  "$2b$12$8wHTq4XtcbQMs5yr0BZQZuBvj5yWxmxWRL25f/U/5ujuWx9mUaI/S";
+
 /** Authenticate an admin user and create a session. */
 export async function login(
   _prev: LoginState,
@@ -35,7 +45,7 @@ export async function login(
 
   if (!user || !user.isActive) {
     // Still run a hash to mitigate timing attacks when user is absent.
-    if (!user) await bcrypt.compare(password, "$2b$10$invalidinvalidinvalidinvalidinvalidinv");
+    if (!user) await bcrypt.compare(password, TIMING_SAFE_DUMMY_HASH);
     return user && !user.isActive
       ? { message: "This account has been deactivated." }
       : invalid;
