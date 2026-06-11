@@ -13,107 +13,99 @@ export function InstallChart({ data, bucket }: InstallChartProps) {
   const id = useId();
   const [hover, setHover] = useState<number | null>(null);
 
-  const width = 800;
-  const height = 240;
-  const padX = 12;
-  const padTop = 16;
-  const padBottom = 28;
-  const mid = padTop + (height - padTop - padBottom) / 2;
-
   const n = data.length;
   const maxUp = Math.max(1, ...data.map((d) => d.installs));
   const maxDown = Math.max(1, ...data.map((d) => d.uninstalls));
-  const halfH = (height - padTop - padBottom) / 2;
 
-  const slot = (width - padX * 2) / Math.max(1, n);
-  const barW = Math.min(18, slot * 0.6);
+  // Adaptive label density: ~8 labels max.
+  const tickEvery = Math.max(1, Math.ceil(n / 8));
 
-  const cx = (i: number) => padX + slot * i + slot / 2;
-  const tickEvery = Math.max(1, Math.ceil(n / 7));
+  if (n === 0) {
+    return (
+      <p className="py-12 text-center text-sm text-muted-foreground">
+        No install activity in this period.
+      </p>
+    );
+  }
 
   return (
     <div className="w-full">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-60 w-full"
-        preserveAspectRatio="none"
-        onMouseLeave={() => setHover(null)}
-      >
-        <line
-          x1={padX}
-          x2={width - padX}
-          y1={mid}
-          y2={mid}
-          stroke="var(--border-strong)"
-          strokeWidth={1}
-        />
+      <div className="flex h-56 items-stretch gap-px">
         {data.map((d, i) => {
-          const upH = (d.installs / maxUp) * halfH;
-          const downH = (d.uninstalls / maxDown) * halfH;
+          const upPct = (d.installs / maxUp) * 100;
+          const downPct = (d.uninstalls / maxDown) * 100;
           const active = hover === i;
+          const showLabel = i % tickEvery === 0 || i === n - 1;
           return (
-            <g key={`${id}-${i}`}>
-              {/* installs (up) */}
-              <rect
-                x={cx(i) - barW / 2}
-                y={mid - upH}
-                width={barW}
-                height={upH}
-                rx={3}
-                fill="var(--color-brand-600)"
-                opacity={active || hover === null ? 1 : 0.45}
-              />
-              {/* uninstalls (down) */}
-              <rect
-                x={cx(i) - barW / 2}
-                y={mid}
-                width={barW}
-                height={downH}
-                rx={3}
-                fill="oklch(0.62 0.18 25)"
-                opacity={active || hover === null ? 1 : 0.45}
-              />
-              <rect
-                x={cx(i) - slot / 2}
-                y={0}
-                width={slot}
-                height={height}
-                fill="transparent"
-                onMouseEnter={() => setHover(i)}
-              />
-              {(i % tickEvery === 0 || i === n - 1) && (
-                <text
-                  x={cx(i)}
-                  y={height - 8}
-                  textAnchor="middle"
-                  className="fill-muted-foreground"
-                  fontSize={11}
-                >
-                  {formatBucket(d.bucket, bucket)}
-                </text>
+            <div
+              key={`${id}-${i}`}
+              className="group relative flex min-w-0 flex-1 flex-col"
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+            >
+              {/* Tooltip */}
+              {active && (
+                <div className="pointer-events-none absolute -top-1 left-1/2 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs shadow-lg">
+                  <p className="font-medium text-foreground">
+                    {formatBucket(d.bucket, bucket)}
+                  </p>
+                  <p className="text-brand-600">+{d.installs} installs</p>
+                  {d.uninstalls > 0 && (
+                    <p style={{ color: "oklch(0.55 0.18 25)" }}>
+                      -{d.uninstalls} uninstalls
+                    </p>
+                  )}
+                </div>
               )}
-            </g>
+
+              {/* Installs (top half, grows down toward mid line) */}
+              <div className="flex flex-1 items-end justify-center pb-px">
+                <div
+                  className="w-full max-w-[22px] rounded-t-md transition-all"
+                  style={{
+                    height: `${Math.max(upPct, d.installs > 0 ? 4 : 0)}%`,
+                    backgroundColor: "var(--color-brand-600)",
+                    opacity: active || hover === null ? 1 : 0.4,
+                  }}
+                />
+              </div>
+
+              {/* Mid axis */}
+              <div className="h-px w-full bg-border-strong" />
+
+              {/* Uninstalls (bottom half, grows down) */}
+              <div className="flex flex-1 items-start justify-center pt-px">
+                <div
+                  className="w-full max-w-[22px] rounded-b-md transition-all"
+                  style={{
+                    height: `${Math.max(downPct, d.uninstalls > 0 ? 4 : 0)}%`,
+                    backgroundColor: "oklch(0.62 0.18 25)",
+                    opacity: active || hover === null ? 1 : 0.4,
+                  }}
+                />
+              </div>
+
+              {/* X label */}
+              <div className="mt-2 h-4 text-center text-[10px] leading-none text-muted-foreground">
+                {showLabel ? formatBucket(d.bucket, bucket) : ""}
+              </div>
+            </div>
           );
         })}
-      </svg>
+      </div>
 
-      <div className="mt-2 flex items-center justify-center gap-5 text-xs">
-        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+      {/* Legend */}
+      <div className="mt-3 flex items-center justify-center gap-5 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm bg-brand-600" /> Installs
         </span>
-        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
           <span
             className="h-2.5 w-2.5 rounded-sm"
             style={{ backgroundColor: "oklch(0.62 0.18 25)" }}
-          />{" "}
+          />
           Uninstalls
         </span>
-        {hover !== null && data[hover] && (
-          <span className="font-medium text-foreground">
-            {formatBucket(data[hover].bucket, bucket)}: +{data[hover].installs}{" "}
-            / -{data[hover].uninstalls}
-          </span>
-        )}
       </div>
     </div>
   );

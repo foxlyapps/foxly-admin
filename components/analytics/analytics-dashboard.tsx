@@ -8,6 +8,7 @@ import {
   Users,
   TrendingUp,
   Loader2,
+  Calendar,
   Download,
   Power,
   Store,
@@ -55,11 +56,20 @@ export function AnalyticsDashboard({ initial }: { initial: AnalyticsData }) {
   return (
     <div className={cn("space-y-8", pending && "pointer-events-none")}>
       {/* Filter bar */}
-      <div className="flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {formatRangeLabel(data.range.from, data.range.to)}
-        </p>
+      <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2.5 px-1">
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
+          ) : (
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          )}
+          <div className="leading-tight">
+            <p className="text-xs text-muted-foreground">Showing data for</p>
+            <p className="text-sm font-medium text-foreground">
+              {formatRangeLabel(data.range.from, data.range.to)}
+            </p>
+          </div>
+        </div>
         <RangeFilter value={preset} onChange={changePreset} disabled={pending} />
       </div>
 
