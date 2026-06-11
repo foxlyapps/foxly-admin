@@ -46,7 +46,7 @@ export function DashboardShell({ items, user, children }: ShellProps) {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <SidebarNav items={items} />
+        <SidebarNav items={items} onNavigate={() => setMobileOpen(false)} />
       </aside>
 
       {/* Mobile overlay */}

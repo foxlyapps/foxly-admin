@@ -43,7 +43,13 @@ export interface NavItem {
   icon: string;
 }
 
-export function SidebarNav({ items }: { items: NavItem[] }) {
+export function SidebarNav({
+  items,
+  onNavigate,
+}: {
+  items: NavItem[];
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
 
   const groups = items.reduce<Record<string, NavItem[]>>((acc, item) => {
@@ -59,6 +65,7 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
       <div className="space-y-0.5">
         <Link
           href="/dashboard"
+          onClick={onNavigate}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
             overviewActive
@@ -71,6 +78,7 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
         </Link>
         <Link
           href="/dashboard/analytics"
+          onClick={onNavigate}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
             analyticsActive
@@ -97,6 +105,7 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
                 <li key={item.slug}>
                   <Link
                     href={href}
+                    onClick={onNavigate}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                       active
