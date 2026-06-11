@@ -13,14 +13,15 @@ platform. Built with **Next.js 16 (App Router)**, **Drizzle ORM + PostgreSQL**,
 3. [Architecture overview](#architecture-overview)
 4. [Authentication & authorization](#authentication--authorization)
 5. [The resource system (generic CRUD)](#the-resource-system-generic-crud)
-6. [Design system](#design-system)
-7. [State management (Zustand)](#state-management-zustand)
-8. [Validation (Zod)](#validation-zod)
-9. [Database & migrations](#database--migrations)
-10. [Seeding admin users](#seeding-admin-users)
-11. [Adding a new managed table](#adding-a-new-managed-table)
-12. [Project structure](#project-structure)
-13. [Scripts](#scripts)
+6. [Analytics](#analytics)
+7. [Design system](#design-system)
+8. [State management (Zustand)](#state-management-zustand)
+9. [Validation (Zod)](#validation-zod)
+10. [Database & migrations](#database--migrations)
+11. [Seeding admin users](#seeding-admin-users)
+12. [Adding a new managed table](#adding-a-new-managed-table)
+13. [Project structure](#project-structure)
+14. [Scripts](#scripts)
 
 ---
 
@@ -146,6 +147,61 @@ introspecting its Drizzle definition.
 | everything else                 | `text`      | text input              |
 
 System columns (`id`, `createdAt`, `updatedAt`, primary keys) are read-only.
+
+---
+
+## Analytics
+
+A feature-rich analytics page at **`/dashboard/analytics`**, built entirely on
+the `order_logs` table.
+
+### Date-range filtering
+
+A dropdown filter (`components/analytics/range-filter.tsx`) offers presets:
+
+- **Recent:** Today, Yesterday, Last 7 / 30 / 90 days
+- **Calendar:** This week, Last week, This month, Last month, This year
+- **All time**
+
+Each preset resolves to a `{ from, to, bucket }` window in
+`lib/analytics/ranges.ts`. Switching a preset calls the `fetchAnalytics`
+server action and re-renders without a full page navigation (`useTransition`).
+KPI deltas compare against the **immediately-preceding equal-length period**.
+
+### What it shows
+
+| Section                    | Detail                                                                 |
+| -------------------------- | ---------------------------------------------------------------------- |
+| KPI cards                  | Revenue, Orders, Avg. Order Value, Customers — each with % vs previous. |
+| Trend chart                | Revenue/Orders over time (toggle), bucketed by hour/day/week/month.    |
+| **Feature usage & insights** | The highlight — see below.                                           |
+| Orders by status           | Donut.                                                                 |
+| Orders by payment method   | Donut.                                                                 |
+| Top shops by revenue       | Ranked bar list.                                                       |
+| Top products               | Ranked bar list.                                                       |
+| Top locations (cities)     | Ranked bar list.                                                       |
+
+### Feature usage & insights
+
+Answers "which features are stores/customers using most":
+
+- **Most-used feature** headline (e.g. *Partial COD used in 151 orders, 60%*).
+- **Payment feature mix** — Cash on Delivery vs Partial COD vs Partial Payment
+  vs Full Prepaid, with order share, revenue share, and **AOV per feature**
+  (a stacked bar + table).
+- **Feature adoption rates** — % of orders using Partial COD, Full Prepaid, and
+  Coupons (progress bars).
+- **Discount impact** — orders using a coupon, coupon rate, total and average
+  discount value.
+
+All charts are **dependency-free SVG** components in `components/analytics/`
+(`area-chart`, `donut`, `bar-list`, `kpi-card`, `feature-insights-panel`).
+Queries live in `lib/analytics/queries.ts` (SQL aggregations:
+`date_trunc` + `generate_series` for gap-free time series, `filter (where …)`
+for adoption rates).
+
+To add a metric: add an aggregation to `getAnalytics`, extend `AnalyticsData`,
+and render it in `analytics-dashboard.tsx`.
 
 ---
 
