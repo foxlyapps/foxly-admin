@@ -1,36 +1,298 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Foxly Admin
 
-## Getting Started
+A professional, schema-driven administration dashboard for the Foxly commerce
+platform. Built with **Next.js 16 (App Router)**, **Drizzle ORM + PostgreSQL**,
+**Zustand** for client state, and **Zod** for validation.
 
-First, run the development server:
+---
+
+## Table of Contents
+
+1. [Quick start](#quick-start)
+2. [Environment variables](#environment-variables)
+3. [Architecture overview](#architecture-overview)
+4. [Authentication & authorization](#authentication--authorization)
+5. [The resource system (generic CRUD)](#the-resource-system-generic-crud)
+6. [Design system](#design-system)
+7. [State management (Zustand)](#state-management-zustand)
+8. [Validation (Zod)](#validation-zod)
+9. [Database & migrations](#database--migrations)
+10. [Seeding admin users](#seeding-admin-users)
+11. [Adding a new managed table](#adding-a-new-managed-table)
+12. [Project structure](#project-structure)
+13. [Scripts](#scripts)
+
+---
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+# Configure .env (see below)
+bun run seed                 # create the first admin (see seeding section)
+bun run dev                  # http://localhost:3000  ->  /login
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The landing page is the **login screen**. After signing in you are routed to
+`/dashboard`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment variables
 
-## Learn More
+| Variable         | Required | Description                                                        |
+| ---------------- | -------- | ------------------------------------------------------------------ |
+| `DATABASE_URL`   | yes      | PostgreSQL connection string. App uses it for all queries.         |
+| `SESSION_SECRET` | yes      | 32+ byte secret used to sign session JWTs. `openssl rand -base64 32`. |
 
-To learn more about Next.js, take a look at the following resources:
+> **Supabase note:** the runtime app works on either the pooler port (`6543`)
+> or session port (`5432`). `drizzle-kit` schema commands (`pull`, `generate`,
+> `migrate`, `push`) **require** the session port `5432`.
+>
+> **Password escaping:** if your password contains a `$`, escape it with a
+> backslash in `.env` (e.g. `Rashel\$110506`) so Bun's dotenv parser does not
+> treat it as a shell variable.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Architecture overview
 
-## Deploy on Vercel
+```
+Browser ──▶ proxy.ts (edge auth gate) ──▶ App Router pages (RSC)
+                                              │
+                          server actions ◀────┤ data fetching (DAL)
+                                │                  │
+                          Zod validation       verifySession()
+                                │                  │
+                          Drizzle ORM ──────▶ PostgreSQL
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Server Components** fetch data and enforce auth close to the data source.
+- **Server Actions** (`"use server"`) handle every mutation, re-validating
+  input with Zod and re-checking authorization.
+- **Client Components** (`"use client"`) handle interactivity (tables, forms,
+  toasts) and talk to the server exclusively through Server Actions.
+- **`proxy.ts`** (Next 16's renamed middleware) performs a fast, optimistic
+  cookie check to redirect unauthenticated users before render.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Authentication & authorization
+
+Stateless **JWT sessions** stored in an `httpOnly` cookie (`foxly_admin_session`).
+
+| File                      | Responsibility                                                |
+| ------------------------- | ------------------------------------------------------------- |
+| `lib/session.ts`          | Encrypt/decrypt JWTs (jose), set/read/delete the cookie.      |
+| `lib/dal.ts`              | `verifySession()` (redirects if absent), `requireRole()`.     |
+| `lib/actions/auth.ts`     | `login` / `logout` server actions (bcrypt verify, timing-safe). |
+| `lib/validations/auth.ts` | Zod `LoginSchema`.                                            |
+| `proxy.ts`                | Optimistic route gate (login ↔ dashboard redirects).          |
+
+**Roles:** `admin` and `superadmin` (Postgres enum `admin_role`).
+`superadmin`-only resources (e.g. **Admin Users**) are filtered out of the
+sidebar *and* re-checked inside every server action via `authorize()`.
+
+Security properties:
+
+- Passwords hashed with **bcrypt** (cost 12).
+- Constant-ish login timing (a dummy hash runs when the user is absent).
+- Generic "Invalid email or password" message (no account enumeration).
+- Every mutation re-verifies the session server-side; client UI hiding is
+  never the only line of defense.
+- You cannot delete your own admin account.
+
+---
+
+## The resource system (generic CRUD)
+
+Rather than hand-coding 12+ near-identical CRUD screens, the dashboard is
+**schema-driven**. One set of pages and components renders every table by
+introspecting its Drizzle definition.
+
+### Pieces
+
+| File                                | Role                                                                 |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| `lib/resources/registry.ts`         | Declares each managed table: slug, labels, icon, group, permissions. |
+| `lib/resources/introspect.ts`       | Reads Drizzle column metadata → `FieldMeta[]` (kind, nullability…).  |
+| `lib/resources/schema-builder.ts`   | Builds a **Zod schema dynamically** from `FieldMeta` + coerces FormData. |
+| `lib/resources/actions.ts`          | Generic `listRows`, `getRow`, `createRow`, `updateRow`, `deleteRow`. |
+| `lib/resources/stats.ts`            | Row counts for the overview page.                                    |
+
+### Pages (dynamic routes)
+
+| Route                                   | Purpose            |
+| --------------------------------------- | ------------------ |
+| `/dashboard`                            | Overview + stats   |
+| `/dashboard/[resource]`                 | Searchable, sortable, paginated list |
+| `/dashboard/[resource]/new`             | Create form        |
+| `/dashboard/[resource]/[id]/edit`       | Edit form          |
+
+### Field-kind inference
+
+`introspectTable()` maps each Drizzle column type to a UI `FieldKind`:
+
+| Drizzle column                  | FieldKind   | Input rendered          |
+| ------------------------------- | ----------- | ----------------------- |
+| `PgUUID`                        | `uuid`      | text (mono, optional)   |
+| `PgBoolean`                     | `boolean`   | checkbox                |
+| integer/numeric/bigserial/…     | `number`    | number input            |
+| `PgJsonb` / `PgJson`            | `json`      | JSON textarea           |
+| `PgTimestamp`                   | `datetime`  | datetime-local          |
+| `PgDate`                        | `date`      | date input              |
+| enum columns                    | `enum`      | select                  |
+| `PgText` (long-name heuristic)  | `textarea`  | textarea                |
+| everything else                 | `text`      | text input              |
+
+System columns (`id`, `createdAt`, `updatedAt`, primary keys) are read-only.
+
+---
+
+## Design system
+
+Defined entirely in `app/globals.css` using **Tailwind CSS v4** `@theme` tokens
+and **OKLCH** color space for perceptually-even palettes. Supports automatic
+light/dark via `prefers-color-scheme`.
+
+Token groups: `--color-brand-*` (Foxly amber), surfaces, borders, foreground,
+sidebar, ring. UI primitives live in `components/ui/`:
+
+| Component        | File                            |
+| ---------------- | ------------------------------- |
+| Button           | `components/ui/button.tsx`      |
+| Input/Textarea/Select/Label | `components/ui/input.tsx` |
+| Card             | `components/ui/card.tsx`        |
+| Badge            | `components/ui/badge.tsx`       |
+| Toaster          | `components/ui/toaster.tsx`     |
+| ConfirmDialog    | `components/ui/confirm-dialog.tsx` |
+
+Dashboard composites live in `components/dashboard/` (shell, sidebar, user
+menu, data table, resource form, record drawer, page header, stat card).
+
+Design principles: consistent spacing & radius tokens, subtle shadows,
+`focus-visible` rings on every interactive element, accessible labels, and a
+unified empty/loading/error treatment across all tables.
+
+---
+
+## State management (Zustand)
+
+| Store                          | Purpose                                                |
+| ------------------------------ | ------------------------------------------------------ |
+| `lib/stores/toast-store.ts`    | Global toast notifications + `toast.success/error/info`. |
+| `lib/stores/table-store.ts`    | Reusable table UI state (search, page, sort).          |
+
+The `DataTable` component manages per-instance fetch state with
+`useTransition` for non-blocking pagination/search/sort, while toasts are
+global via Zustand so any component (or server-action result handler) can emit.
+
+---
+
+## Validation (Zod)
+
+- **Auth:** static `LoginSchema` in `lib/validations/auth.ts`.
+- **Resources:** schemas are generated at runtime by `buildSchema(fields, mode)`
+  from introspected metadata. `create` enforces required fields; `update` is
+  partial. `coerceFormData` converts raw `FormData` strings into typed values
+  (booleans, numbers, JSON) before validation.
+
+All validation runs **on the server** inside the action; field errors are
+returned to the client and shown inline under each input.
+
+---
+
+## Database & migrations
+
+Drizzle ORM with the `node-postgres` driver. See [`db/`](db/):
+
+- `db/index.ts` — pooled client (`db`) reused across HMR.
+- `db/schema.ts` — introspected store tables (regenerated by `db:pull`).
+- `db/relations.ts` — relations (regenerated by `db:pull`).
+- `db/admin.ts` — **hand-written** `admin_users` table + `admin_role` enum
+  (kept separate so `db:pull` never overwrites it).
+- `db/migrations/` — SQL migrations + snapshots.
+
+```bash
+bun run db:pull       # introspect existing DB -> schema.ts (use :5432)
+bun run db:generate   # generate a migration from schema changes
+bun run db:migrate    # apply pending migrations (use :5432)
+bun run db:studio     # Drizzle Studio
+```
+
+---
+
+## Seeding admin users
+
+The seeder (`seed.ts`) is **git-ignored** (contains/depends on credentials).
+
+```bash
+# defaults: superadmin@foxly.app / ChangeMe123!
+bun run seed
+
+# custom
+EMAIL=you@foxly.app PASSWORD='Str0ngPass!' NAME="You" ROLE=superadmin bun run seed
+```
+
+It upserts by email and hashes the password with bcrypt (cost 12).
+
+---
+
+## Adding a new managed table
+
+1. Add the table to `db/schema.ts` (or run `bun run db:pull`).
+2. Append a `ResourceConfig` entry to `RESOURCES` in
+   `lib/resources/registry.ts` (slug, labels, icon, group, primary columns).
+3. That's it — list/create/edit/delete pages, validation, search, sort,
+   pagination and the sidebar entry are generated automatically.
+
+Optional per-resource flags: `superAdminOnly`, `disableCreate`.
+
+---
+
+## Project structure
+
+```
+app/
+  layout.tsx               Root layout + Toaster
+  page.tsx                 Redirects to /dashboard
+  not-found.tsx            404
+  login/                   Login landing page + form
+  dashboard/
+    layout.tsx             Authenticated shell (sidebar/topbar)
+    page.tsx               Overview + stats
+    [resource]/
+      page.tsx             List
+      new/page.tsx         Create
+      [id]/edit/page.tsx   Edit
+components/
+  ui/                      Design-system primitives
+  dashboard/               Dashboard composites
+lib/
+  session.ts  dal.ts       Auth/session
+  actions/auth.ts          Login/logout actions
+  validations/auth.ts      Zod auth schema
+  resources/               Generic CRUD engine
+  stores/                  Zustand stores
+  utils.ts                 cn(), formatters
+db/                        Drizzle schema + migrations
+proxy.ts                   Route auth gate
+seed.ts                    Admin seeder (git-ignored)
+```
+
+---
+
+## Scripts
+
+| Script              | Description                          |
+| ------------------- | ------------------------------------ |
+| `bun run dev`       | Start dev server                     |
+| `bun run build`     | Production build                     |
+| `bun run start`     | Start production server              |
+| `bun run lint`      | ESLint                               |
+| `bun run db:pull`   | Introspect DB → schema               |
+| `bun run db:generate` | Generate migration                 |
+| `bun run db:migrate`  | Apply migrations                   |
+| `bun run db:push`     | Push schema (dev)                  |
+| `bun run db:studio`   | Drizzle Studio                     |
+| `bun run seed`        | Seed an admin user (git-ignored)   |
