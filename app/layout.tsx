@@ -1,3 +1,4 @@
+import { Agentation } from "agentation";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -24,14 +25,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    <>
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+      >
       <body className="min-h-full">
         {children}
         <Toaster />
       </body>
     </html>
+    {process.env.NODE_ENV === "development" && <Agentation />}
+      </>
   );
 }
