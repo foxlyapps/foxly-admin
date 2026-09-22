@@ -275,6 +275,62 @@ export const fraudProtectionSettings = pgTable("fraud_protection_settings", {
 	unique("fraud_protection_settings_shop_domain_key").on(table.shopDomain),
 ]);
 
+export const merchantSubscriptions = pgTable("merchant_subscriptions", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	shop: varchar("shop", { length: 255 }).notNull(),
+	shopifySubscriptionId: varchar("shopify_subscription_id", { length: 255 }),
+	shopifyUsageLineItemId: varchar("shopify_usage_line_item_id", { length: 255 }),
+	planName: varchar("plan_name", { length: 50 }).default('FREE').notNull(),
+	billingCycle: varchar("billing_cycle", { length: 20 }).default('monthly').notNull(),
+	status: varchar({ length: 30 }).default('active').notNull(),
+	renewsOn: timestamp("renews_on", { withTimezone: true, mode: 'string' }),
+	usageCappedAmount: numeric("usage_capped_amount", { precision: 10, scale: 2 }).default('0').notNull(),
+	isTest: boolean("is_test").default(false).notNull(),
+	cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
+	cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true, mode: 'string' }),
+}, (table) => [
+	index("idx_merchant_subscriptions_shop").using("btree", table.shop.asc().nullsLast().op("text_ops")),
+	index("idx_merchant_subscriptions_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	unique("merchant_subscriptions_shop_key").on(table.shop),
+]);
+
+export const merchantUsageCycles = pgTable("merchant_usage_cycles", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	shop: varchar("shop", { length: 255 }).notNull(),
+	planName: varchar("plan_name", { length: 50 }).default('FREE').notNull(),
+	cycleStart: timestamp("cycle_start", { withTimezone: true, mode: 'string' }).notNull(),
+	cycleEnd: timestamp("cycle_end", { withTimezone: true, mode: 'string' }).notNull(),
+	includedOrdersUsed: integer("included_orders_used").default(0).notNull(),
+	overageOrders: integer("overage_orders").default(0).notNull(),
+	overageChargedOrders: integer("overage_charged_orders").default(0).notNull(),
+	lastUsageChargeDate: timestamp("last_usage_charge_date", { withTimezone: true, mode: 'string' }),
+	status: varchar({ length: 20 }).default('active').notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("idx_merchant_usage_cycles_shop").using("btree", table.shop.asc().nullsLast().op("text_ops"), table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
+]);
+
+export const otpSettings = pgTable("otp_settings", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	shopDomain: text("shop_domain").notNull(),
+	mode: text().default('disabled').notNull(),
+	expirySeconds: integer("expiry_seconds").default(300).notNull(),
+	resendCooldownSeconds: integer("resend_cooldown_seconds").default(60).notNull(),
+	maxAttempts: integer("max_attempts").default(5).notNull(),
+	postOrderCod: boolean("post_order_cod").default(true).notNull(),
+	postOrderPartial: boolean("post_order_partial").default(true).notNull(),
+	postOrderPrepaid: boolean("post_order_prepaid").default(true).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
+}, (table) => [
+	index("idx_otp_settings_shop").using("btree", table.shopDomain.asc().nullsLast().op("text_ops")),
+	unique("otp_settings_shop_domain_key").on(table.shopDomain),
+]);
+
 export const shopifySessions = pgTable("shopify_sessions", {
 	id: text().primaryKey().notNull(),
 	shop: text().notNull(),

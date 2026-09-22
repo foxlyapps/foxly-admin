@@ -33,6 +33,23 @@ export function formatDelta(value: number | null): {
   return { text: `${positive ? "+" : ""}${value.toFixed(1)}%`, positive };
 }
 
+/**
+ * Amount in Indian-numbering words for a hover tooltip, e.g. 532000 -> "5.3 lakh",
+ * 33000 -> "33 thousand", 23 -> "23 rupee", 0.5 -> "50 paisa". Single largest
+ * applicable unit, not a full breakdown.
+ */
+export function formatIndianWords(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const trim = (n: number) => (Number.isInteger(n) ? n.toString() : n.toFixed(1).replace(/\.0$/, ""));
+
+  if (abs >= 1_00_00_000) return `${sign}${trim(abs / 1_00_00_000)} crore`;
+  if (abs >= 1_00_000) return `${sign}${trim(abs / 1_00_000)} lakh`;
+  if (abs >= 1_000) return `${sign}${trim(abs / 1_000)} thousand`;
+  if (abs >= 1) return `${sign}${trim(abs)} rupee${abs === 1 ? "" : "s"}`;
+  return `${sign}${trim(abs * 100)} paisa`;
+}
+
 function currencySymbol(currency: string): string {
   try {
     return (

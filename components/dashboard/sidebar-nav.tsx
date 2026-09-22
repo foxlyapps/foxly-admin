@@ -59,6 +59,7 @@ export function SidebarNav({
 
   const overviewActive = pathname === "/dashboard";
   const analyticsActive = pathname.startsWith("/dashboard/analytics");
+  const merchantsActive = pathname.startsWith("/dashboard/merchants");
 
   return (
     <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
@@ -88,6 +89,19 @@ export function SidebarNav({
         >
           <BarChart3 className="h-4 w-4 shrink-0" />
           Analytics
+        </Link>
+        <Link
+          href="/dashboard/merchants"
+          onClick={onNavigate}
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+            merchantsActive
+              ? "bg-sidebar-active text-sidebar-foreground"
+              : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-sidebar-foreground",
+          )}
+        >
+          <Store className="h-4 w-4 shrink-0" />
+          Merchants
         </Link>
       </div>
 

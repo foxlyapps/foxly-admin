@@ -27,6 +27,9 @@ import {
   shopifySessions,
   orderLogs,
   partialPaymentSettings,
+  merchantSubscriptions,
+  merchantUsageCycles,
+  otpSettings,
 } from "@/db/schema";
 import { adminUsers } from "@/db/admin";
 
@@ -159,6 +162,36 @@ export const RESOURCES: ResourceConfig[] = [
     table: partialPaymentSettings,
     group: "Settings",
     primaryColumns: ["shopDomain"],
+  },
+  {
+    slug: "merchant-subscriptions",
+    label: "Subscriptions",
+    labelSingular: "Subscription",
+    description: "Merchant billing plan and subscription status.",
+    icon: CreditCard,
+    table: merchantSubscriptions,
+    group: "Store",
+    primaryColumns: ["shop", "planName", "status", "billingCycle", "renewsOn"],
+  },
+  {
+    slug: "merchant-usage-cycles",
+    label: "Usage Cycles",
+    labelSingular: "Usage Cycle",
+    description: "Per-merchant billing usage cycle windows and order counts.",
+    icon: ScrollText,
+    table: merchantUsageCycles,
+    group: "Store",
+    primaryColumns: ["shop", "planName", "cycleStart", "cycleEnd", "status"],
+  },
+  {
+    slug: "otp-settings",
+    label: "OTP Settings",
+    labelSingular: "OTP Setting",
+    description: "Per-store OTP verification mode and config.",
+    icon: ShieldAlert,
+    table: otpSettings,
+    group: "Settings",
+    primaryColumns: ["shopDomain", "mode"],
   },
   {
     slug: "shopify-sessions",
