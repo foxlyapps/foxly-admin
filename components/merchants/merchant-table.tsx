@@ -149,7 +149,7 @@ export function MerchantTable({ initial, plans }: MerchantTableProps) {
                   onClick={() => router.push(`/dashboard/merchants/${row.shopDomain}`)}
                 >
                   <td className="px-4 py-3">
-                    <p className="font-medium text-foreground">{row.shopDomain}</p>
+                    <p className="font-medium text-foreground">{row.domain ?? row.shopDomain}</p>
                   </td>
                   <td className="px-4 py-3">
                     {row.plan ? <Badge tone="brand">{row.plan}</Badge> : <span className="text-muted-foreground">—</span>}

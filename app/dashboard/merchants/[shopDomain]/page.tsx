@@ -66,12 +66,12 @@ export default async function MerchantDetailPage({
             label="Store URL"
             value={
               <a
-                href={`https://${header.shopDomain}`}
+                href={`https://${header.domain ?? header.shopDomain}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 text-brand-600 hover:underline"
               >
-                {header.shopDomain}
+                {header.domain ?? header.shopDomain}
                 <ExternalLink className="h-3 w-3" />
               </a>
             }

@@ -15,6 +15,13 @@
       "when": 1781166843863,
       "tag": "0001_sturdy_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1758610000000,
+      "tag": "0002_add_shop_primary_domain",
+      "breakpoints": true
     }
   ]
 }

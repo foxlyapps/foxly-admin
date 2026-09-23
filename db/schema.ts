@@ -8,6 +8,7 @@ export const shops = pgTable("shops", {
 	shopDomain: varchar("shop_domain", { length: 255 }).notNull(),
 	accessToken: text("access_token").notNull(),
 	scope: text(),
+	primaryDomain: varchar("primary_domain", { length: 255 }),
 	installedAt: timestamp("installed_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 	uninstalledAt: timestamp("uninstalled_at", { withTimezone: true, mode: 'string' }),
 }, (table) => [

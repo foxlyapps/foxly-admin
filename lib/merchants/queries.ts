@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { verifySession } from "@/lib/dal";
 import { resolveRange, type RangePreset, type DateRange } from "@/lib/analytics/ranges";
+import { fetchShopPrimaryDomain } from "@/lib/shopify/client";
 
 export type InstalledFilter = "all" | "installed" | "uninstalled";
 
@@ -15,6 +16,7 @@ export interface MerchantListFilters {
 
 export interface MerchantListRow {
   shopDomain: string;
+  domain: string | null;
   plan: string | null;
   installedAt: string | null;
   uninstalledAt: string | null;
@@ -58,6 +60,7 @@ export async function listMerchants(
     db.execute<Record<string, unknown> & MerchantListRow>(sql`
       select
         s.shop_domain as "shopDomain",
+        coalesce(s.primary_domain, s.shop_domain) as "domain",
         ms.plan_name as "plan",
         s.installed_at::text as "installedAt",
         s.uninstalled_at::text as "uninstalledAt",
@@ -104,6 +107,7 @@ export async function getDistinctPlans(): Promise<string[]> {
 
 export interface MerchantHeader {
   shopDomain: string;
+  domain: string | null;
   plan: string | null;
   planStatus: string | null;
   installedAt: string | null;
@@ -120,9 +124,14 @@ export interface MerchantHeader {
  */
 export async function getMerchantHeader(shopDomain: string): Promise<MerchantHeader | null> {
   await verifySession();
-  const res = await db.execute<Record<string, unknown> & MerchantHeader>(sql`
+  const res = await db.execute<
+    Record<string, unknown> & MerchantHeader & { accessToken: string; uninstalled: boolean }
+  >(sql`
     select
       s.shop_domain as "shopDomain",
+      s.primary_domain as "domain",
+      s.access_token as "accessToken",
+      (s.uninstalled_at is not null) as "uninstalled",
       ms.plan_name as "plan",
       ms.status as "planStatus",
       s.installed_at::text as "installedAt",
@@ -135,7 +144,22 @@ export async function getMerchantHeader(shopDomain: string): Promise<MerchantHea
     where s.shop_domain = ${shopDomain}
     limit 1
   `);
-  return res.rows[0] ?? null;
+  const row = res.rows[0];
+  if (!row) return null;
+
+  const { accessToken, uninstalled, ...header } = row;
+
+  // Lazily fetch & cache the real storefront domain on first view of an
+  // installed shop that doesn't have one cached yet.
+  if (!header.domain && !uninstalled) {
+    const fetched = await fetchShopPrimaryDomain(shopDomain, accessToken).catch(() => null);
+    if (fetched) {
+      header.domain = fetched;
+      await db.execute(sql`update shops set primary_domain = ${fetched} where shop_domain = ${shopDomain}`);
+    }
+  }
+
+  return { ...header, domain: header.domain ?? shopDomain };
 }
 
 export interface MerchantOrderStats {
